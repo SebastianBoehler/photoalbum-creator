@@ -22,7 +22,6 @@ const analysisSchema = z.object({
     })
     .optional(),
   notes: z.string().optional(),
-  suggestions: z.array(z.string()).default([]),
 });
 
 export type ImageAnalysis = {
@@ -38,7 +37,6 @@ export type ImageAnalysis = {
   };
   metadata: Record<string, string>;
   crop?: { left?: number; right?: number; top?: number; bottom?: number };
-  suggestions: string[];
 };
 
 type AnalyzeParams = {
@@ -99,12 +97,12 @@ export async function analyzeImage({ file, width, height, mimeType }: AnalyzePar
 - contentSummary: <= 12 words, objective caption.
 - tags: 3-6 short tags.
 - objects: main subjects or concepts.
-- crop: optional object with pixel amounts to trim: { left?, right?, top?, bottom? } when a minor crop would improve composition; omit if not needed.
-- suggestions: optional short corrections like "slightly crop left", "increase exposure +0.3EV".`;
+- crop: optional object with pixel amounts to trim: { left?, right?, top?, bottom? } when a minor crop would improve composition or remove distractions; omit if not needed.
+  use image height and width as reference on how much to crop as **the crop amount is in pixels**.`;
 
   console.log(prompt);
 
-  const { object } = await generateObject({
+  const { object, reasoning } = await generateObject({
     model,
     schema: analysisSchema,
     messages: [
@@ -117,7 +115,17 @@ export async function analyzeImage({ file, width, height, mimeType }: AnalyzePar
         content: [{ type: "file", data: arrayBuffer, mediaType }],
       },
     ],
+    providerOptions: {
+      google: {
+        thinkingConfig: {
+          thinkingBudget: 2000,
+          includeThoughts: true,
+        },
+      },
+    },
   });
+
+  console.log(reasoning);
 
   //TODO: verification of type like description length, tags count, fullPagePrintOK boolean, etc.
 
@@ -134,7 +142,6 @@ export async function analyzeImage({ file, width, height, mimeType }: AnalyzePar
     objects: object.objects,
     metadata,
     crop: object.crop,
-    suggestions: object.suggestions,
   };
 
   return resolved;

@@ -3,7 +3,8 @@
 import React, { useCallback, useMemo, useState } from "react";
 import NextImage from "next/image";
 import { analyzeImage, type ImageAnalysis } from "@/hooks/ai";
-
+import { bytesToReadable, getImageDimensions } from "@/hooks/utils";
+import CropReview from "@/components/CropReview";
 type AlbumImage = {
   id: string;
   file: File;
@@ -13,39 +14,14 @@ type AlbumImage = {
   status: "pending" | "analyzing" | "done" | "error";
   analysis?: ImageAnalysis;
   error?: string;
+  userCrop?: { left?: number; right?: number; top?: number; bottom?: number };
 };
-
-async function getImageDimensions(file: File): Promise<{ width: number; height: number }>
-{
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image();
-    const dims = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-      img.onerror = () => reject(new Error("Failed to load image"));
-      img.src = url;
-    });
-    return dims;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
-function bytesToReadable(size: number): string {
-  const units = ["B", "KB", "MB", "GB"]; // we won't go beyond
-  let idx = 0;
-  let s = size;
-  while (s > 1024 && idx < units.length - 1) {
-    s /= 1024;
-    idx += 1;
-  }
-  return `${s.toFixed(1)} ${units[idx]}`;
-}
 
 export default function AlbumBuilder() {
   const [items, setItems] = useState<AlbumImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [view, setView] = useState<"gallery" | "crop">("gallery");
 
   const onFilesSelected = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -115,6 +91,14 @@ export default function AlbumBuilder() {
   }, []);
 
   const hasPending = useMemo(() => items.some((x) => x.status === "pending"), [items]);
+  const cropCount = useMemo(() => items.filter((i) => i.analysis?.crop).length, [items]);
+
+  const onChangeCrop = useCallback(
+    (id: string, crop?: { left?: number; right?: number; top?: number; bottom?: number } | null) => {
+      setItems((prev) => prev.map((p) => (p.id === id ? { ...p, userCrop: crop ?? undefined } : p)));
+    },
+    []
+  );
 
   return (
     <div className="grid grid-cols-12 gap-6 h-[calc(100vh-80px)] w-full">
@@ -167,104 +151,98 @@ export default function AlbumBuilder() {
 
       {/* Main grid */}
       <main className="col-span-12 md:col-span-8 lg:col-span-9 overflow-auto">
-        {items.length === 0 ? (
-          <div className="h-full grid place-items-center text-neutral-500">No images yet. Upload to begin.</div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {items.map((it) => (
-              <div key={it.id} className="group border rounded-xl overflow-hidden bg-white/50 dark:bg-black/20">
-                <div className="relative aspect-[4/3] overflow-hidden">
-                  <NextImage
-                    src={it.previewUrl}
-                    alt={it.file.name}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                  <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded-md bg-black/70 text-white">
-                    {(it.width)}×{(it.height)}
-                  </div>
-                  {it.status === "analyzing" && (
-                    <div className="absolute inset-0 grid place-items-center bg-black/40 text-white text-sm">
-                      Analyzing...
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            className={`h-9 px-3 rounded-md border ${view === "gallery" ? "bg-black text-white border-black" : ""}`}
+            onClick={() => setView("gallery")}
+          >
+            Gallery
+          </button>
+          <button
+            className={`h-9 px-3 rounded-md border ${view === "crop" ? "bg-black text-white border-black" : ""}`}
+            onClick={() => setView("crop")}
+          >
+            Crop review ({cropCount})
+          </button>
+        </div>
+
+        {view === "gallery" ? (
+          items.length === 0 ? (
+            <div className="h-full grid place-items-center text-neutral-500">No images yet. Upload to begin.</div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {items.map((it) => (
+                <div key={it.id} className="group border rounded-xl overflow-hidden bg-white/50 dark:bg-black/20">
+                  <div className="relative aspect-[4/3] overflow-hidden">
+                    <NextImage
+                      src={it.previewUrl}
+                      alt={it.file.name}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                    <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded-md bg-black/70 text-white">
+                      {it.width}×{it.height}
                     </div>
-                  )}
-                </div>
-                <div className="p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-medium truncate" title={it.file.name}>{it.file.name}</div>
-                    <div className="text-[10px] text-neutral-500">{bytesToReadable(it.file.size)}</div>
-                  </div>
-
-                  {it.status === "error" && (
-                    <div className="text-xs text-red-600">{it.error}</div>
-                  )}
-
-                  {it.analysis && (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
-                          it.analysis.resolution.fullPagePrintOK ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                        }`}>
-                          {it.analysis.resolution.fullPagePrintOK ? "A4 Ready" : "Might be soft"}
-                        </span>
-                        <span className="text-[10px] text-neutral-500">{it.analysis.resolution.megapixels.toFixed(2)} MP</span>
+                    {it.status === "analyzing" && (
+                      <div className="absolute inset-0 grid place-items-center bg-black/40 text-white text-sm">
+                        Analyzing...
                       </div>
-                      <div className="text-sm">{it.analysis.contentSummary}</div>
-                      {it.analysis.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {it.analysis.tags.slice(0, 6).map((t) => (
-                            <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800">
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {it.analysis.metadata && Object.keys(it.analysis.metadata).length > 0 && (
-                        <details className="mt-1">
-                          <summary className="text-xs text-neutral-600 cursor-pointer">Metadata</summary>
-                          <ul className="mt-1 space-y-0.5">
-                            {Object.entries(it.analysis.metadata)
-                              .map(([k, v]) => (
-                                <li key={k} className="text-[10px] text-neutral-500">
-                                  {k}: {v}
-                                </li>
-                              ))}
-                          </ul>
-                        </details>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-2">
-                    <button
-                      className="text-xs text-red-600 hover:underline"
-                      onClick={() => removeItem(it.id)}
-                    >
-                      Remove
-                    </button>
-                    {it.status === "pending" && (
-                      <button
-                        className="text-xs text-blue-600 hover:underline"
-                        onClick={async () => {
-                          setItems((prev) => prev.map((p) => (p.id === it.id ? { ...p, status: "analyzing" } : p)));
-                          try {
-                            const res = await analyzeImage({ file: it.file, width: it.width, height: it.height, mimeType: it.file.type });
-                            setItems((prev) => prev.map((p) => (p.id === it.id ? { ...p, status: "done", analysis: res } : p)));
-                          } catch (err: unknown) {
-                            const message = err instanceof Error ? err.message : "Unknown error";
-                            setItems((prev) => prev.map((p) => (p.id === it.id ? { ...p, status: "error", error: message } : p)));
-                          }
-                        }}
-                      >
-                        Analyze
-                      </button>
                     )}
                   </div>
+                  <div className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-medium truncate" title={it.file.name}>{it.file.name}</div>
+                      <div className="text-[10px] text-neutral-500">{bytesToReadable(it.file.size)}</div>
+                    </div>
+
+                    {it.status === "error" && (
+                      <div className="text-xs text-red-600">{it.error}</div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2">
+                      <button
+                        className="text-xs text-red-600 hover:underline"
+                        onClick={() => removeItem(it.id)}
+                      >
+                        Remove
+                      </button>
+                      {it.status === "pending" && (
+                        <button
+                          className="text-xs text-blue-600 hover:underline"
+                          onClick={async () => {
+                            setItems((prev) => prev.map((p) => (p.id === it.id ? { ...p, status: "analyzing" } : p)));
+                            try {
+                              const res = await analyzeImage({ file: it.file, width: it.width, height: it.height, mimeType: it.file.type });
+                              setItems((prev) => prev.map((p) => (p.id === it.id ? { ...p, status: "done", analysis: res } : p)));
+                            } catch (err: unknown) {
+                              const message = err instanceof Error ? err.message : "Unknown error";
+                              setItems((prev) => prev.map((p) => (p.id === it.id ? { ...p, status: "error", error: message } : p)));
+                            }
+                          }}
+                        >
+                          Analyze
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <CropReview
+            items={items.map((it) => ({
+              id: it.id,
+              previewUrl: it.previewUrl,
+              width: it.width,
+              height: it.height,
+              analysis: it.analysis?.crop ? { crop: it.analysis.crop } : undefined,
+              userCrop: it.userCrop,
+            }))}
+            onChangeCrop={onChangeCrop}
+            onBack={() => setView("gallery")}
+          />
         )}
       </main>
     </div>
