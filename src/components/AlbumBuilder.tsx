@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import NextImage from "next/image";
 import { analyzeImage, type ImageAnalysis } from "@/hooks/ai";
 
 type AlbumImage = {
@@ -148,7 +149,7 @@ export default function AlbumBuilder() {
             onClick={analyzePending}
             className="h-10 px-4 rounded-md bg-black text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isAnalyzing ? "Analyzing..." : "Analyze Pending"}
+            {isAnalyzing ? "Analyzing..." : "Analyze"}
           </button>
           <button
             onClick={() => setItems([])}
@@ -173,10 +174,12 @@ export default function AlbumBuilder() {
             {items.map((it) => (
               <div key={it.id} className="group border rounded-xl overflow-hidden bg-white/50 dark:bg-black/20">
                 <div className="relative aspect-[4/3] overflow-hidden">
-                  <img
+                  <NextImage
                     src={it.previewUrl}
                     alt={it.file.name}
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
+                    unoptimized
                   />
                   <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded-md bg-black/70 text-white">
                     {(it.width)}×{(it.height)}
@@ -216,6 +219,19 @@ export default function AlbumBuilder() {
                             </span>
                           ))}
                         </div>
+                      )}
+                      {it.analysis.metadata && Object.keys(it.analysis.metadata).length > 0 && (
+                        <details className="mt-1">
+                          <summary className="text-xs text-neutral-600 cursor-pointer">Metadata</summary>
+                          <ul className="mt-1 space-y-0.5">
+                            {Object.entries(it.analysis.metadata)
+                              .map(([k, v]) => (
+                                <li key={k} className="text-[10px] text-neutral-500">
+                                  {k}: {v}
+                                </li>
+                              ))}
+                          </ul>
+                        </details>
                       )}
                     </div>
                   )}
