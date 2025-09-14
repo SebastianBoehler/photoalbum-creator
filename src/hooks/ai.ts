@@ -12,15 +12,8 @@ const analysisSchema = z.object({
   contentSummary: z.string(),
   tags: z.array(z.string()).default([]),
   objects: z.array(z.string()).default([]),
-  // Optional crop suggestion in pixels to trim from each edge
-  crop: z
-    .object({
-      left: z.number().min(0).optional(),
-      right: z.number().min(0).optional(),
-      top: z.number().min(0).optional(),
-      bottom: z.number().min(0).optional(),
-    })
-    .optional(),
+  // Layout recommendation to guide album page composition
+  layout: z.enum(["single", "twoColumns", "twoRows", "grid2x2"]),
   notes: z.string().optional(),
 });
 
@@ -36,7 +29,7 @@ export type ImageAnalysis = {
     notes?: string;
   };
   metadata: Record<string, string>;
-  crop?: { left?: number; right?: number; top?: number; bottom?: number };
+  layout: "single" | "twoColumns" | "twoRows" | "grid2x2";
 };
 
 type AnalyzeParams = {
@@ -97,10 +90,15 @@ export async function analyzeImage({ file, width, height, mimeType }: AnalyzePar
 - contentSummary: <= 12 words, objective caption.
 - tags: 3-6 short tags.
 - objects: main subjects or concepts.
-- crop: optional object with pixel amounts to trim: { left?, right?, top?, bottom? } when a minor crop would improve composition or remove distractions; omit if not needed.
-  use image height and width as reference on how much to crop as **the crop amount is in pixels**.`;
+- layout: Choose ONE of { single | twoColumns | twoRows | grid2x2 } to recommend the best page layout for
+that image for a 30cm x 30cm square album.
+  Guidance:
+   - single: strong "hero" image or when details warrant full-page.
+   - twoColumns: two portrait-oriented images placed side-by-side (2 columns).
+   - twoRows: two landscape-oriented images stacked vertically (2 rows).
+   - grid2x2: four complementary images that work well as a 2x2 grid.`;
 
-  console.log(prompt);
+  //console.log(prompt);
 
   const { object, reasoning } = await generateObject({
     model,
@@ -125,7 +123,7 @@ export async function analyzeImage({ file, width, height, mimeType }: AnalyzePar
     },
   });
 
-  console.log(reasoning);
+  //console.log(reasoning);
 
   //TODO: verification of type like description length, tags count, fullPagePrintOK boolean, etc.
 
@@ -141,7 +139,7 @@ export async function analyzeImage({ file, width, height, mimeType }: AnalyzePar
     },
     objects: object.objects,
     metadata,
-    crop: object.crop,
+    layout: object.layout,
   };
 
   return resolved;
