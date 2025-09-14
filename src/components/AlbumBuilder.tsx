@@ -93,7 +93,7 @@ export default function AlbumBuilder() {
   const analyzedItems = useMemo(() => items.filter((x) => x.analysis), [items]);
 
   return (
-    <div className="grid grid-cols-12 gap-6 h-[calc(100vh-80px)] w-full">
+    <div className="grid grid-cols-12 gap-6 w-full">
       {/* Sidebar (hidden on print) */}
       <aside className="print-hide col-span-12 md:col-span-4 lg:col-span-3 border rounded-xl p-4 bg-white/50 dark:bg-black/20">
         <h2 className="text-lg font-semibold mb-3">Upload Photos</h2>

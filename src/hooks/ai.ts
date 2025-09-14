@@ -141,6 +141,7 @@ that image for a 30cm x 30cm square album.
     metadata,
     layout: object.layout,
   };
+  console.log(resolved.layout);
 
   return resolved;
 }

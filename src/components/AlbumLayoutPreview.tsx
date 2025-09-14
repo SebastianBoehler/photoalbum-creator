@@ -139,7 +139,7 @@ export default function AlbumLayoutPreview({ items }: Props) {
   }, []);
 
   return (
-    <div className="print-root flex flex-col gap-4">
+    <div className="print-root flex flex-col gap-4 pb-12">
       <div className="flex items-center justify-between print-hide">
         <div className="text-sm text-neutral-600">Pages: {pages.length}</div>
         <button className="h-10 px-4 rounded-md bg-black text-white" onClick={onExport}>
